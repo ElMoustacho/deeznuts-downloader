@@ -1,0 +1,13 @@
+[package]
+name = "deeznuts-downloader"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+deezer = { git = "https://github.com/ElMoustacho/deezer-rs" }
+deezer_downloader = { git = "https://github.com/ElMoustacho/deezer_downloader" }
+directories = "5.0.1"
+futures = "0.3.28"
+tokio = { version = "1.32.0", features = ["full"] }
