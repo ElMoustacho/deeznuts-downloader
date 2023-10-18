@@ -1,68 +1,91 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
+mod downloader;
+mod tui;
 
-use deezer::DeezerClient;
-use deezer_downloader::downloader::Downloader;
-use directories::UserDirs;
-use futures::future::join_all;
+use color_eyre::eyre::{eyre, Result};
+use ratatui::{backend::CrosstermBackend as Backend, prelude::*, widgets::*};
+use tui::Tui;
 
 // DEBUG: Test ids
 static ALBUM_ID: u64 = 379962977;
 static SONG_ID: u64 = 498469812;
 
-async fn download_song(id: u64, counter: Option<u32>) {
-    let downloader = Downloader::new().await.unwrap();
-    let mut song = downloader.download_song(id).await.unwrap();
-    let client = DeezerClient::new();
-
-    if let Some(user_dirs) = UserDirs::new() {
-        if let Some(download_dirs) = user_dirs.download_dir() {
-            let song_title = format!(
-                "./{} - {}.mp3",
-                song.tag.artist().unwrap_or_default(),
-                song.tag.title().unwrap_or_default()
-            );
-
-            if let Some(counter) = counter {
-                song.tag.set_track(counter);
-            }
-
-            song.write_to_file(download_dirs.join(song_title))
-                .expect("An error occured while writing the file.");
-        }
-    }
-}
-
-async fn download_album(id: u64) {
-    let mut futures = Vec::new();
-    let client = DeezerClient::new();
-
-    let mut counter = 1;
-    let album = client.album(id).await.unwrap().unwrap();
-    for song in album.tracks {
-        futures.push(download_song(song.id, Some(counter)));
-        counter += 1;
-    }
-
-    join_all(futures).await;
-}
+pub type Frame<'a> = ratatui::Frame<'a, Backend<std::io::Stderr>>;
 
 #[tokio::main]
-async fn main() {
-    print!("Enter the ID of the album you want to download: ");
+async fn main() -> Result<()> {
+    let mut app = App::default();
+    app.run().await
+}
 
-    let mut input_string = String::new();
+#[derive(Clone, Debug)]
+pub enum Event {
+    Error,
+    Tick,
+    Key(crossterm::event::KeyEvent),
+}
 
-    loop {
-        input_string.clear();
-        std::io::stdin().read_line(&mut input_string).unwrap();
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Message {
+    Tick,
+    Quit,
+}
 
-        if let Ok(id) = input_string.trim().parse::<u64>() {
-            download_album(id).await;
+#[derive(Debug, Clone, PartialEq)]
+struct App {
+    should_quit: bool,
+}
 
-            break;
-        }
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl App {
+    fn new() -> Self {
+        Self { should_quit: false }
     }
 
-    println!("Download successful!");
+    async fn run(&mut self) -> Result<()> {
+        let mut tui = Tui::new()?;
+        tui.enter()?;
+        while !self.should_quit {
+            tui.draw(|f| self.ui(f).expect("Unexpected error during drawing"))?;
+            let event = tui.next().await.ok_or(eyre!("Unable to get event"))?; // blocks until next event
+            let message = self.handle_event(event)?;
+            self.update(message)?;
+        }
+        tui.exit()?;
+        Ok(())
+    }
+
+    fn handle_event(&self, event: Event) -> Result<Message> {
+        let msg = match event {
+            Event::Key(key) => match key.code {
+                crossterm::event::KeyCode::Char('q') => Message::Quit,
+                _ => Message::Tick,
+            },
+            _ => Message::Tick,
+        };
+        Ok(msg)
+    }
+
+    fn update(&mut self, message: Message) -> Result<()> {
+        match message {
+            Message::Tick => {}
+            Message::Quit => self.quit(),
+        }
+        Ok(())
+    }
+
+    fn quit(&mut self) {
+        self.should_quit = true;
+    }
+
+    fn ui(&mut self, f: &mut Frame) -> Result<()> {
+        let area = f.size();
+        f.render_widget(Paragraph::new("Coucou les gens!").blue(), area);
+
+        Ok(())
+    }
 }
