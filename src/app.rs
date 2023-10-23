@@ -1,0 +1,63 @@
+use crate::{tui::Tui, Event, Frame, Message};
+use color_eyre::eyre::{eyre, Result};
+use ratatui::{prelude::*, widgets::*};
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct App {
+    should_quit: bool,
+}
+
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl App {
+    pub fn new() -> Self {
+        Self { should_quit: false }
+    }
+
+    pub async fn run(&mut self) -> Result<()> {
+        let mut tui = Tui::new()?;
+        tui.enter()?;
+        while !self.should_quit {
+            tui.draw(|f| self.ui(f).expect("Unexpected error during drawing"))?;
+            let event = tui.next().await.ok_or(eyre!("Unable to get event"))?; // blocks until next event
+            let message = self.handle_event(event)?;
+            self.update(message)?;
+        }
+        tui.exit()?;
+        Ok(())
+    }
+
+    fn handle_event(&self, event: Event) -> Result<Message> {
+        let msg = match event {
+            Event::Key(key) => match key.code {
+                crossterm::event::KeyCode::Char('q') => Message::Quit,
+                _ => Message::Tick,
+            },
+            _ => Message::Tick,
+        };
+        Ok(msg)
+    }
+
+    fn update(&mut self, message: Message) -> Result<()> {
+        match message {
+            Message::Tick => {}
+            Message::Quit => self.quit(),
+        }
+        Ok(())
+    }
+
+    fn quit(&mut self) {
+        self.should_quit = true;
+    }
+
+    fn ui(&mut self, f: &mut Frame) -> Result<()> {
+        let area = f.size();
+        f.render_widget(Paragraph::new("Coucou les gens!").blue(), area);
+
+        Ok(())
+    }
+}
