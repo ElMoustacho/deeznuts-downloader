@@ -20,7 +20,7 @@ pub enum Event {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Message {
+enum Action {
     Tick,
     Quit,
 }

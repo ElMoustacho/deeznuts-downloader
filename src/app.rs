@@ -1,4 +1,4 @@
-use crate::{tui::Tui, Event, Frame, Message};
+use crate::{tui::Tui, Action, Event, Frame};
 use color_eyre::eyre::{eyre, Result};
 use ratatui::{prelude::*, widgets::*};
 
@@ -31,21 +31,21 @@ impl App {
         Ok(())
     }
 
-    fn handle_event(&self, event: Event) -> Result<Message> {
+    fn handle_event(&self, event: Event) -> Result<Action> {
         let msg = match event {
             Event::Key(key) => match key.code {
-                crossterm::event::KeyCode::Char('q') => Message::Quit,
-                _ => Message::Tick,
+                crossterm::event::KeyCode::Char('q') => Action::Quit,
+                _ => Action::Tick,
             },
-            _ => Message::Tick,
+            _ => Action::Tick,
         };
         Ok(msg)
     }
 
-    fn update(&mut self, message: Message) -> Result<()> {
-        match message {
-            Message::Tick => {}
-            Message::Quit => self.quit(),
+    fn update(&mut self, action: Action) -> Result<()> {
+        match action {
+            Action::Tick => {}
+            Action::Quit => self.quit(),
         }
         Ok(())
     }
