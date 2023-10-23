@@ -1,10 +1,13 @@
 use crate::{tui::Tui, Action, Event, Frame};
 use color_eyre::eyre::{eyre, Result};
 use ratatui::{prelude::*, widgets::*};
+use tui_input::backend::crossterm::EventHandler;
+use tui_input::Input;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct App {
     should_quit: bool,
+    input: Input,
 }
 
 impl Default for App {
@@ -15,7 +18,10 @@ impl Default for App {
 
 impl App {
     pub fn new() -> Self {
-        Self { should_quit: false }
+        Self {
+            should_quit: false,
+            input: Input::default(),
+        }
     }
 
     pub async fn run(&mut self) -> Result<()> {
@@ -31,11 +37,14 @@ impl App {
         Ok(())
     }
 
-    fn handle_event(&self, event: Event) -> Result<Action> {
+    fn handle_event(&mut self, event: Event) -> Result<Action> {
         let msg = match event {
             Event::Key(key) => match key.code {
-                crossterm::event::KeyCode::Char('q') => Action::Quit,
-                _ => Action::Tick,
+                crossterm::event::KeyCode::Esc => Action::Quit,
+                _ => {
+                    self.input.handle_event(&crossterm::event::Event::Key(key));
+                    Action::Tick
+                }
             },
             _ => Action::Tick,
         };
@@ -56,7 +65,18 @@ impl App {
 
     fn ui(&mut self, f: &mut Frame) -> Result<()> {
         let area = f.size();
-        f.render_widget(Paragraph::new("Coucou les gens!").blue(), area);
+
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .margin(1)
+            .constraints(vec![Constraint::Min(1), Constraint::Length(3)])
+            .split(area);
+
+        f.render_widget(
+            Paragraph::new(self.input.value()).block(Block::default().borders(Borders::all())),
+            chunks[1],
+        );
+        f.set_cursor(self.input.visual_cursor() as u16 + 2, chunks[1].y + 1);
 
         Ok(())
     }
