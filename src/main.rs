@@ -27,6 +27,7 @@ enum Action {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    color_eyre::install()?;
     let mut app = App::default();
     app.run().await
 }
