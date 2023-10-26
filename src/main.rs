@@ -19,6 +19,8 @@ pub enum Event {
 enum Action {
     Tick,
     Quit,
+    DownloadSong,
+    DownloadAlbum,
 }
 
 #[tokio::main]
