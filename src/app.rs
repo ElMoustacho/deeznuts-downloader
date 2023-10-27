@@ -61,11 +61,13 @@ impl App {
             Action::Quit => self.quit(),
             Action::DownloadSong => {
                 if let Ok(id) = self.input.value().parse::<u64>() {
+                    self.input.reset();
                     self.downloader.request_download(DownloadRequest::Song(id));
                 }
             }
             Action::DownloadAlbum => {
                 if let Ok(id) = self.input.value().parse::<u64>() {
+                    self.input.reset();
                     self.downloader.request_download(DownloadRequest::Album(id));
                 }
             }
