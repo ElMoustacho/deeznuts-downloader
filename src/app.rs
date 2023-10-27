@@ -45,6 +45,7 @@ impl App {
             Event::Key(key) => match key.code {
                 crossterm::event::KeyCode::Esc => Action::Quit,
                 crossterm::event::KeyCode::Enter => Action::DownloadSong,
+                crossterm::event::KeyCode::Tab => Action::DownloadAlbum,
                 _ => {
                     self.input.handle_event(&crossterm::event::Event::Key(key));
                     Action::Tick

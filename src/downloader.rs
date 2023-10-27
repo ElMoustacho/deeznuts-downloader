@@ -1,8 +1,10 @@
 use color_eyre::eyre::{eyre, Result};
+use crossbeam_channel::{unbounded, Sender};
 use deezer::DeezerClient;
 use deezer_downloader::Downloader as DeezerDownloader;
 use directories::UserDirs;
-use futures::future::join_all;
+
+static DOWNLOAD_THREADS: Id = 4;
 
 type Id = u64;
 
@@ -12,17 +14,46 @@ pub enum DownloadRequest {
 }
 
 #[derive(Debug)]
-pub struct Downloader {}
+pub struct Downloader {
+    download_tx: Sender<Id>,
+}
 
 impl Downloader {
     pub fn new() -> Self {
-        Downloader {}
+        let (download_tx, download_rx) = unbounded();
+
+        for _ in 0..DOWNLOAD_THREADS {
+            let _download_rx = download_rx.clone();
+
+            tokio::spawn(async move {
+                while let Ok(id) = _download_rx.recv() {
+                    download_song(id).await;
+                }
+            });
+        }
+
+        Downloader { download_tx }
     }
 
     pub fn request_download(&self, request: DownloadRequest) {
         match request {
-            DownloadRequest::Album(id) => tokio::spawn(download_album(id)),
-            DownloadRequest::Song(id) => tokio::spawn(download_song(id)),
+            DownloadRequest::Song(id) => {
+                self.download_tx.send(id).expect("Channel should be open.");
+            }
+            DownloadRequest::Album(id) => {
+                let _download_tx = self.download_tx.clone();
+
+                tokio::spawn(async move {
+                    let client = DeezerClient::new();
+                    let album = client.album(id).await.unwrap().unwrap();
+
+                    for track in album.tracks {
+                        _download_tx
+                            .send(track.id)
+                            .expect("Channel should be open.");
+                    }
+                });
+            }
         };
     }
 }
@@ -46,25 +77,6 @@ async fn download_song(id: Id) -> Result<()> {
                 .expect("An error occured while writing the file.");
         }
     }
-
-    Ok(())
-}
-
-pub async fn download_album(id: Id) -> Result<()> {
-    let mut futures = Vec::new();
-    let client = DeezerClient::new();
-
-    let album = client
-        .album(id)
-        .await
-        .transpose()
-        .ok_or(eyre!("Album not found."))??;
-
-    for song in album.tracks {
-        futures.push(download_song(song.id));
-    }
-
-    join_all(futures).await;
 
     Ok(())
 }
