@@ -16,6 +16,7 @@ pub enum DownloadRequest {
 
 #[derive(Debug)]
 pub enum DownloadProgress {
+    Queue(Id),
     Start(Id),
     Progress(Id, f32),
     Finish(Id),
@@ -25,6 +26,7 @@ pub enum DownloadProgress {
 #[derive(Debug)]
 pub struct Downloader {
     pub progress_rx: Receiver<DownloadProgress>,
+    progress_tx: Sender<DownloadProgress>,
     download_tx: Sender<Id>,
 }
 
@@ -54,6 +56,7 @@ impl Downloader {
 
         Downloader {
             download_tx,
+            progress_tx,
             progress_rx,
         }
     }
@@ -61,9 +64,12 @@ impl Downloader {
     pub fn request_download(&self, request: DownloadRequest) {
         match request {
             DownloadRequest::Song(id) => {
+                self.progress_tx.send(DownloadProgress::Queue(id)).unwrap();
+
                 self.download_tx.send(id).expect("Channel should be open.");
             }
             DownloadRequest::Album(id) => {
+                let _progress_tx = self.progress_tx.clone();
                 let _download_tx = self.download_tx.clone();
 
                 tokio::spawn(async move {
@@ -71,6 +77,10 @@ impl Downloader {
                     let album = client.album(id).await.unwrap().unwrap();
 
                     for track in album.tracks {
+                        _progress_tx
+                            .send(DownloadProgress::Queue(track.id))
+                            .unwrap();
+
                         _download_tx
                             .send(track.id)
                             .expect("Channel should be open.");
