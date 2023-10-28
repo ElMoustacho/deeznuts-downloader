@@ -1,5 +1,5 @@
 use color_eyre::eyre::{eyre, Result};
-use crossbeam_channel::{unbounded, Sender};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use deezer::DeezerClient;
 use deezer_downloader::Downloader as DeezerDownloader;
 use directories::UserDirs;
@@ -8,31 +8,54 @@ static DOWNLOAD_THREADS: Id = 4;
 
 type Id = u64;
 
+#[derive(Debug)]
 pub enum DownloadRequest {
     Album(Id),
     Song(Id),
 }
 
 #[derive(Debug)]
+pub enum DownloadProgress {
+    Start(Id),
+    Progress(Id, f32),
+    Finish(Id),
+    Error(Id),
+}
+
+#[derive(Debug)]
 pub struct Downloader {
+    pub progress_rx: Receiver<DownloadProgress>,
     download_tx: Sender<Id>,
 }
 
 impl Downloader {
     pub fn new() -> Self {
         let (download_tx, download_rx) = unbounded();
+        let (progress_tx, progress_rx) = unbounded();
 
         for _ in 0..DOWNLOAD_THREADS {
             let _download_rx = download_rx.clone();
+            let _progress_tx = progress_tx.clone();
 
             tokio::spawn(async move {
                 while let Ok(id) = _download_rx.recv() {
-                    download_song(id).await;
+                    _progress_tx.send(DownloadProgress::Start(id)).unwrap();
+
+                    let result = download_song(id).await;
+                    let progress = match result {
+                        Ok(_) => DownloadProgress::Finish(id),
+                        Err(_) => DownloadProgress::Error(id),
+                    };
+
+                    _progress_tx.send(progress).unwrap();
                 }
             });
         }
 
-        Downloader { download_tx }
+        Downloader {
+            download_tx,
+            progress_rx,
+        }
     }
 
     pub fn request_download(&self, request: DownloadRequest) {
