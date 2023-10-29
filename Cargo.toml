@@ -13,7 +13,7 @@ deezer = { git = "https://github.com/ElMoustacho/deezer-rs" }
 deezer_downloader = { git = "https://github.com/ElMoustacho/deezer_downloader" }
 directories = "5.0.1"
 futures = "0.3.28"
-ratatui = "0.23.0"
+ratatui = "0.24.0"
 tokio = { version = "1.32.0", features = ["full"] }
 tokio-util = "0.7.9"
 tui-input = "0.8.0"

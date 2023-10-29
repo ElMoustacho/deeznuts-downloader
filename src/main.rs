@@ -4,9 +4,8 @@ mod tui;
 
 use app::App;
 use color_eyre::eyre::Result;
-use ratatui::backend::CrosstermBackend as Backend;
 
-pub type Frame<'a> = ratatui::Frame<'a, Backend<std::io::Stderr>>;
+pub type Frame<'a> = ratatui::Frame<'a>;
 
 #[derive(Clone, Debug)]
 pub enum Event {
