@@ -1,4 +1,6 @@
-use crate::downloader::{DownloadRequest, Downloader};
+use std::fmt::Display;
+
+use crate::downloader::{DownloadProgress, DownloadRequest, Downloader};
 use crate::{tui::Tui, Action, Event, Frame};
 use color_eyre::eyre::{eyre, Result};
 use ratatui::{prelude::*, widgets::*};
@@ -6,10 +8,32 @@ use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
 #[derive(Debug)]
+struct QueueItem {
+    pub id: u64,
+    pub status: DownloadStatus,
+}
+
+#[derive(Debug)]
+enum DownloadStatus {
+    Finished,
+    Downloading,
+    Error,
+    Inactive,
+}
+
+impl Display for DownloadStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[derive(Debug)]
 pub struct App {
     should_quit: bool,
     input: Input,
     downloader: Downloader,
+    queue: Vec<QueueItem>,
+    finished_queue: Vec<QueueItem>,
 }
 
 impl Default for App {
@@ -24,6 +48,8 @@ impl App {
             should_quit: false,
             input: Input::default(),
             downloader: Downloader::new(),
+            queue: Vec::new(),
+            finished_queue: Vec::new(),
         }
     }
 
@@ -73,6 +99,38 @@ impl App {
                 }
             }
         }
+
+        while let Ok(progress) = self.downloader.progress_rx.try_recv() {
+            match progress {
+                DownloadProgress::Queue(id) => self.queue.push(QueueItem {
+                    id,
+                    status: DownloadStatus::Inactive,
+                }),
+                DownloadProgress::Start(id) => {
+                    for item in self.queue.iter_mut() {
+                        if item.id == id {
+                            item.status = DownloadStatus::Downloading
+                        }
+                    }
+                }
+                DownloadProgress::Progress(_, _) => {}
+                DownloadProgress::Finish(id) => {
+                    let pos = self.queue.iter().position(|x| x.id == id).unwrap();
+                    let mut elem = self.queue.remove(pos);
+                    elem.status = DownloadStatus::Finished;
+
+                    self.finished_queue.push(elem)
+                }
+                DownloadProgress::Error(id) => {
+                    let pos = self.queue.iter().position(|x| x.id == id).unwrap();
+                    let mut elem = self.queue.remove(pos);
+                    elem.status = DownloadStatus::Error;
+
+                    self.finished_queue.push(elem)
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -89,11 +147,49 @@ impl App {
             .constraints(vec![Constraint::Min(1), Constraint::Length(3)])
             .split(area);
 
+        // Search bar
         f.render_widget(
             Paragraph::new(self.input.value()).block(Block::default().borders(Borders::all())),
             chunks[1],
         );
         f.set_cursor(self.input.visual_cursor() as u16 + 2, chunks[1].y + 1);
+
+        let chunks2 = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(chunks[0]);
+
+        // Queue list
+        f.render_widget(
+            List::new(
+                self.queue
+                    .iter()
+                    .map(|x| ListItem::new(format!("{} [{}]", x.id, x.status)))
+                    .collect::<Vec<_>>(),
+            )
+            .block(
+                Block::default()
+                    .borders(Borders::all())
+                    .title("Download queue"),
+            ),
+            chunks2[0],
+        );
+
+        // Finished list
+        f.render_widget(
+            List::new(
+                self.finished_queue
+                    .iter()
+                    .map(|x| ListItem::new(format!("{} [{}]", x.id, x.status)))
+                    .collect::<Vec<_>>(),
+            )
+            .block(
+                Block::default()
+                    .borders(Borders::all())
+                    .title("Finished downloading"),
+            ),
+            chunks2[1],
+        );
 
         Ok(())
     }
