@@ -1,6 +1,4 @@
-use std::fmt::Display;
-
-use crate::downloader::{DownloadProgress, DownloadRequest, Downloader};
+use crate::downloader::{DownloadProgress, DownloadRequest, DownloadStatus, Downloader};
 use crate::{tui::Tui, Action, Event, Frame};
 use color_eyre::eyre::{eyre, Result};
 use ratatui::{prelude::*, widgets::*};
@@ -11,20 +9,6 @@ use tui_input::Input;
 struct QueueItem {
     pub id: u64,
     pub status: DownloadStatus,
-}
-
-#[derive(Debug)]
-enum DownloadStatus {
-    Finished,
-    Downloading,
-    Error,
-    Inactive,
-}
-
-impl Display for DownloadStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
 }
 
 #[derive(Debug)]

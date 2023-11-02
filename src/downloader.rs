@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use color_eyre::eyre::{eyre, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use deezer::DeezerClient;
@@ -21,6 +23,20 @@ pub enum DownloadProgress {
     Progress(Id, f32),
     Finish(Id),
     Error(Id),
+}
+
+#[derive(Debug)]
+pub enum DownloadStatus {
+    Finished,
+    Downloading,
+    Error,
+    Inactive,
+}
+
+impl Display for DownloadStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[derive(Debug)]
