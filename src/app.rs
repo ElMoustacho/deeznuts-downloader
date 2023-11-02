@@ -1,9 +1,24 @@
+use std::fmt::Display;
+
 use crate::downloader::{DownloadProgress, DownloadRequest, DownloadStatus, Downloader};
 use crate::{tui::Tui, Action, Event, Frame};
 use color_eyre::eyre::{eyre, Result};
 use ratatui::{prelude::*, widgets::*};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
+
+#[derive(Debug, Default)]
+enum InputMode {
+    #[default]
+    Song,
+    Album,
+}
+
+impl Display for InputMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
 
 #[derive(Debug)]
 struct QueueItem {
@@ -18,6 +33,7 @@ pub struct App {
     downloader: Downloader,
     queue: Vec<QueueItem>,
     finished_queue: Vec<QueueItem>,
+    input_mode: InputMode,
 }
 
 impl Default for App {
@@ -34,6 +50,7 @@ impl App {
             downloader: Downloader::new(),
             queue: Vec::new(),
             finished_queue: Vec::new(),
+            input_mode: InputMode::default(),
         }
     }
 
@@ -54,8 +71,8 @@ impl App {
         let msg = match event {
             Event::Key(key) => match key.code {
                 crossterm::event::KeyCode::Esc => Action::Quit,
-                crossterm::event::KeyCode::Enter => Action::DownloadSong,
-                crossterm::event::KeyCode::Tab => Action::DownloadAlbum,
+                crossterm::event::KeyCode::Enter => Action::Download,
+                crossterm::event::KeyCode::Tab => Action::ToggleInputMode,
                 _ => {
                     self.input.handle_event(&crossterm::event::Event::Key(key));
                     Action::Tick
@@ -70,16 +87,21 @@ impl App {
         match action {
             Action::Tick => {}
             Action::Quit => self.quit(),
-            Action::DownloadSong => {
-                if let Ok(id) = self.input.value().parse::<u64>() {
-                    self.input.reset();
-                    self.downloader.request_download(DownloadRequest::Song(id));
+            Action::ToggleInputMode => {
+                self.input_mode = match self.input_mode {
+                    InputMode::Song => InputMode::Album,
+                    InputMode::Album => InputMode::Song,
                 }
             }
-            Action::DownloadAlbum => {
+            Action::Download => {
+                let request = match self.input_mode {
+                    InputMode::Song => DownloadRequest::Song,
+                    InputMode::Album => DownloadRequest::Album,
+                };
+
                 if let Ok(id) = self.input.value().parse::<u64>() {
                     self.input.reset();
-                    self.downloader.request_download(DownloadRequest::Album(id));
+                    self.downloader.request_download(request(id));
                 }
             }
         }
@@ -131,12 +153,31 @@ impl App {
             .constraints(vec![Constraint::Min(1), Constraint::Length(3)])
             .split(area);
 
+        let input_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Length(7), Constraint::Min(1)])
+            .split(chunks[1]);
+
         // Search bar
         f.render_widget(
-            Paragraph::new(self.input.value()).block(Block::default().borders(Borders::all())),
-            chunks[1],
+            Paragraph::new(self.input_mode.to_string())
+                .alignment(Alignment::Center)
+                .block(Block::default().padding(Padding::uniform(1))),
+            input_chunks[0],
         );
-        f.set_cursor(self.input.visual_cursor() as u16 + 2, chunks[1].y + 1);
+
+        f.render_widget(
+            Paragraph::new(self.input.value()).block(
+                Block::default()
+                    .borders(Borders::all())
+                    .padding(Padding::horizontal(1)),
+            ),
+            input_chunks[1],
+        );
+        f.set_cursor(
+            self.input.visual_cursor() as u16 + 2 + input_chunks[1].x,
+            input_chunks[1].y + 1,
+        );
 
         let chunks2 = Layout::default()
             .direction(Direction::Horizontal)
