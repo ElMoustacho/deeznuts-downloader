@@ -3,7 +3,7 @@ use std::fmt::Display;
 use color_eyre::eyre::{eyre, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use deezer::DeezerClient;
-use deezer_downloader::Downloader as DeezerDownloader;
+use deezer_downloader::{Downloader as DeezerDownloader, Song};
 use directories::UserDirs;
 
 static DOWNLOAD_THREADS: Id = 4;
@@ -109,7 +109,7 @@ impl Downloader {
 }
 
 async fn download_song(id: Id, downloader: &DeezerDownloader) -> Result<()> {
-    let song = match downloader.download_song(id).await {
+    let song = match Song::download(id, downloader).await {
         Ok(it) => it,
         Err(_) => return Err(eyre!(format!("Song with id {} not found.", id))),
     };
