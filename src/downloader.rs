@@ -56,10 +56,11 @@ impl Downloader {
             let _progress_tx = progress_tx.clone();
 
             tokio::spawn(async move {
+                let downloader = DeezerDownloader::new().await.unwrap();
                 while let Ok(id) = _download_rx.recv() {
                     _progress_tx.send(DownloadProgress::Start(id)).unwrap();
 
-                    let result = download_song(id).await;
+                    let result = download_song(id, &downloader).await;
                     let progress = match result {
                         Ok(_) => DownloadProgress::Finish(id),
                         Err(_) => DownloadProgress::Error(id),
@@ -107,8 +108,7 @@ impl Downloader {
     }
 }
 
-async fn download_song(id: Id) -> Result<()> {
-    let downloader = DeezerDownloader::new().await.unwrap();
+async fn download_song(id: Id, downloader: &DeezerDownloader) -> Result<()> {
     let song = match downloader.download_song(id).await {
         Ok(it) => it,
         Err(_) => return Err(eyre!(format!("Song with id {} not found.", id))),
