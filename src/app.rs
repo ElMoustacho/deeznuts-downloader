@@ -122,14 +122,22 @@ impl App {
                 }
                 DownloadProgress::Progress(_, _) => {}
                 DownloadProgress::Finish(id) => {
-                    let pos = self.queue.iter().position(|x| x.song.id == id).unwrap();
+                    let pos = self
+                        .queue
+                        .iter()
+                        .position(|x| x.song.id == id)
+                        .expect("Track should be in queue.");
                     let mut elem = self.queue.remove(pos);
                     elem.status = DownloadStatus::Finished;
 
                     self.finished_queue.push(elem)
                 }
                 DownloadProgress::Error(id) => {
-                    let pos = self.queue.iter().position(|x| x.song.id == id).unwrap();
+                    let pos = self
+                        .queue
+                        .iter()
+                        .position(|x| x.song.id == id)
+                        .expect("Track should be in queue.");
                     let mut elem = self.queue.remove(pos);
                     elem.status = DownloadStatus::Error;
 
