@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use color_eyre::eyre::{eyre, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use deezer::DeezerClient;
+use deezer::{models::Track, DeezerClient};
 use deezer_downloader::{Downloader as DeezerDownloader, Song};
 use directories::UserDirs;
 
@@ -18,7 +18,7 @@ pub enum DownloadRequest {
 
 #[derive(Debug)]
 pub enum DownloadProgress {
-    Queue(Id),
+    Queue(Track),
     Start(Id),
     Progress(Id, f32),
     Finish(Id),
@@ -81,9 +81,16 @@ impl Downloader {
     pub fn request_download(&self, request: DownloadRequest) {
         match request {
             DownloadRequest::Song(id) => {
-                self.progress_tx.send(DownloadProgress::Queue(id)).unwrap();
+                let _progress_tx = self.progress_tx.clone();
+                let _download_tx = self.download_tx.clone();
 
-                self.download_tx.send(id).expect("Channel should be open.");
+                tokio::spawn(async move {
+                    let client = DeezerClient::new();
+                    let track = client.track(id).await.unwrap().unwrap();
+
+                    _progress_tx.send(DownloadProgress::Queue(track)).unwrap();
+                    _download_tx.send(id).expect("Channel should be open.");
+                });
             }
             DownloadRequest::Album(id) => {
                 let _progress_tx = self.progress_tx.clone();
@@ -93,14 +100,12 @@ impl Downloader {
                     let client = DeezerClient::new();
                     let album = client.album(id).await.unwrap().unwrap();
 
-                    for track in album.tracks {
-                        _progress_tx
-                            .send(DownloadProgress::Queue(track.id))
-                            .unwrap();
+                    for album_track in album.tracks {
+                        let track = album_track.get_full().await.unwrap();
+                        let id = track.id;
 
-                        _download_tx
-                            .send(track.id)
-                            .expect("Channel should be open.");
+                        _progress_tx.send(DownloadProgress::Queue(track)).unwrap();
+                        _download_tx.send(id).expect("Channel should be open.");
                     }
                 });
             }

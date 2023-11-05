@@ -410,7 +410,7 @@ dependencies = [
 [[package]]
 name = "deezer"
 version = "0.1.0"
-source = "git+https://github.com/ElMoustacho/deezer-rs#114c1e10b19b341e4bf7c60c2dcbfa86dc376b6d"
+source = "git+https://github.com/ElMoustacho/deezer-rs#7a4dbb243bf3e6a5dc6ddf2c5a3ef7d96f35bdc1"
 dependencies = [
  "async-trait",
  "log",

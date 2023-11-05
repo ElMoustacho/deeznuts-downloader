@@ -3,6 +3,7 @@ use std::fmt::Display;
 use crate::downloader::{DownloadProgress, DownloadRequest, DownloadStatus, Downloader};
 use crate::{tui::Tui, Action, Event, Frame};
 use color_eyre::eyre::{eyre, Result};
+use deezer::models::Track;
 use ratatui::{prelude::*, widgets::*};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
@@ -22,7 +23,7 @@ impl Display for InputMode {
 
 #[derive(Debug)]
 struct QueueItem {
-    pub id: u64,
+    pub song: Track,
     pub status: DownloadStatus,
 }
 
@@ -108,27 +109,27 @@ impl App {
 
         while let Ok(progress) = self.downloader.progress_rx.try_recv() {
             match progress {
-                DownloadProgress::Queue(id) => self.queue.push(QueueItem {
-                    id,
+                DownloadProgress::Queue(track) => self.queue.push(QueueItem {
+                    song: track,
                     status: DownloadStatus::Inactive,
                 }),
                 DownloadProgress::Start(id) => {
                     for item in self.queue.iter_mut() {
-                        if item.id == id {
+                        if item.song.id == id {
                             item.status = DownloadStatus::Downloading
                         }
                     }
                 }
                 DownloadProgress::Progress(_, _) => {}
                 DownloadProgress::Finish(id) => {
-                    let pos = self.queue.iter().position(|x| x.id == id).unwrap();
+                    let pos = self.queue.iter().position(|x| x.song.id == id).unwrap();
                     let mut elem = self.queue.remove(pos);
                     elem.status = DownloadStatus::Finished;
 
                     self.finished_queue.push(elem)
                 }
                 DownloadProgress::Error(id) => {
-                    let pos = self.queue.iter().position(|x| x.id == id).unwrap();
+                    let pos = self.queue.iter().position(|x| x.song.id == id).unwrap();
                     let mut elem = self.queue.remove(pos);
                     elem.status = DownloadStatus::Error;
 
@@ -189,7 +190,7 @@ impl App {
             List::new(
                 self.queue
                     .iter()
-                    .map(|x| ListItem::new(format!("{} [{}]", x.id, x.status)))
+                    .map(|x| ListItem::new(format!("{} [{}]", x.song.title, x.status)))
                     .collect::<Vec<_>>(),
             )
             .block(
@@ -205,7 +206,7 @@ impl App {
             List::new(
                 self.finished_queue
                     .iter()
-                    .map(|x| ListItem::new(format!("{} [{}]", x.id, x.status)))
+                    .map(|x| ListItem::new(format!("{} [{}]", x.song.title, x.status)))
                     .collect::<Vec<_>>(),
             )
             .block(
