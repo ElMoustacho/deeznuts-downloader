@@ -86,10 +86,16 @@ impl Downloader {
 
                 tokio::spawn(async move {
                     let client = DeezerClient::new();
-                    let track = client.track(id).await.unwrap().unwrap();
+                    let maybe_track = client.track(id).await;
 
-                    _progress_tx.send(DownloadProgress::Queue(track)).unwrap();
-                    _download_tx.send(id).expect("Channel should be open.");
+                    if let Ok(Some(track)) = maybe_track {
+                        _progress_tx
+                            .send(DownloadProgress::Queue(track))
+                            .expect("Channel should be open.");
+                        _download_tx.send(id).expect("Channel should be open.");
+                    } else {
+                        // TODO: Display error message indicating the song hasn't been found
+                    }
                 });
             }
             DownloadRequest::Album(id) => {
@@ -98,14 +104,23 @@ impl Downloader {
 
                 tokio::spawn(async move {
                     let client = DeezerClient::new();
-                    let album = client.album(id).await.unwrap().unwrap();
+                    let maybe_album = client.album(id).await;
 
-                    for album_track in album.tracks {
-                        let track = album_track.get_full().await.unwrap();
-                        let id = track.id;
+                    if let Ok(Some(album)) = maybe_album {
+                        for album_track in album.tracks {
+                            let track = album_track
+                                .get_full()
+                                .await
+                                .expect("Track should always be available.");
+                            let id = track.id;
 
-                        _progress_tx.send(DownloadProgress::Queue(track)).unwrap();
-                        _download_tx.send(id).expect("Channel should be open.");
+                            _progress_tx
+                                .send(DownloadProgress::Queue(track))
+                                .expect("Channel should be open.");
+                            _download_tx.send(id).expect("Channel should be open.");
+                        }
+                    } else {
+                        // TODO: Display error message indicating the album hasn't been found
                     }
                 });
             }
