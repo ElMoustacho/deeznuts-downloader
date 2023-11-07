@@ -198,7 +198,26 @@ impl App {
             List::new(
                 self.queue
                     .iter()
-                    .map(|x| ListItem::new(format!("{} [{}]", x.song.title, x.status)))
+                    .map(|x| {
+                        ListItem::new(Line::from(vec![
+                            Span::styled(
+                                format!("[{}]", x.status),
+                                Style::default()
+                                    .fg(match x.status {
+                                        DownloadStatus::Finished => Color::LightBlue,
+                                        DownloadStatus::Downloading => Color::LightGreen,
+                                        DownloadStatus::Error => Color::Red,
+                                        DownloadStatus::Inactive => Color::Gray,
+                                    })
+                                    .bold(),
+                            ),
+                            Span::styled(
+                                format!(" {} ", x.song.artist.name,),
+                                Style::default().bold(),
+                            ),
+                            Span::raw(format!("- {}", x.song.title.clone())),
+                        ]))
+                    })
                     .collect::<Vec<_>>(),
             )
             .block(
@@ -214,7 +233,26 @@ impl App {
             List::new(
                 self.finished_queue
                     .iter()
-                    .map(|x| ListItem::new(format!("{} [{}]", x.song.title, x.status)))
+                    .map(|x| {
+                        ListItem::new(Line::from(vec![
+                            Span::styled(
+                                format!("[{}]", x.status),
+                                Style::default()
+                                    .fg(match x.status {
+                                        DownloadStatus::Finished => Color::LightBlue,
+                                        DownloadStatus::Downloading => Color::LightGreen,
+                                        DownloadStatus::Error => Color::Red,
+                                        DownloadStatus::Inactive => Color::Gray,
+                                    })
+                                    .bold(),
+                            ),
+                            Span::styled(
+                                format!(" {} ", x.song.artist.name,),
+                                Style::default().bold(),
+                            ),
+                            Span::raw(format!("- {}", x.song.title.clone())),
+                        ]))
+                    })
                     .collect::<Vec<_>>(),
             )
             .block(
