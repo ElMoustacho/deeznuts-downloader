@@ -90,15 +90,19 @@ impl Downloader {
                     let client = DeezerClient::new();
                     let maybe_track = client.track(id).await;
 
-                    if let Ok(Some(track)) = maybe_track {
-                        _progress_tx
-                            .send(DownloadProgress::Queue(track))
-                            .expect("Channel should be open.");
-                        _download_tx.send(id).expect("Channel should be open.");
-                    } else {
-                        _progress_tx
-                            .send(DownloadProgress::SongNotFoundError(id))
-                            .expect("Channel should be open.");
+                    // Check if the song was found AND is readable
+                    match maybe_track {
+                        Ok(Some(track)) if track.readable => {
+                            _progress_tx
+                                .send(DownloadProgress::Queue(track))
+                                .expect("Channel should be open.");
+                            _download_tx.send(id).expect("Channel should be open.");
+                        }
+                        _ => {
+                            _progress_tx
+                                .send(DownloadProgress::SongNotFoundError(id))
+                                .expect("Channel should be open.");
+                        }
                     }
                 });
             }
