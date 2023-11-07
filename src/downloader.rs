@@ -22,7 +22,9 @@ pub enum DownloadProgress {
     Start(Id),
     Progress(Id, f32),
     Finish(Id),
-    Error(Id),
+    DownloadError(Id),
+    SongNotFoundError(Id),
+    AlbumNotFoundError(Id),
 }
 
 #[derive(Debug)]
@@ -63,7 +65,7 @@ impl Downloader {
                     let result = download_song(id, &downloader).await;
                     let progress = match result {
                         Ok(_) => DownloadProgress::Finish(id),
-                        Err(_) => DownloadProgress::Error(id),
+                        Err(_) => DownloadProgress::DownloadError(id),
                     };
 
                     _progress_tx.send(progress).unwrap();
@@ -94,7 +96,9 @@ impl Downloader {
                             .expect("Channel should be open.");
                         _download_tx.send(id).expect("Channel should be open.");
                     } else {
-                        // TODO: Display error message indicating the song hasn't been found
+                        _progress_tx
+                            .send(DownloadProgress::SongNotFoundError(id))
+                            .expect("Channel should be open.");
                     }
                 });
             }
@@ -120,7 +124,9 @@ impl Downloader {
                             _download_tx.send(id).expect("Channel should be open.");
                         }
                     } else {
-                        // TODO: Display error message indicating the album hasn't been found
+                        _progress_tx
+                            .send(DownloadProgress::AlbumNotFoundError(id))
+                            .expect("Channel should be open.");
                     }
                 });
             }

@@ -35,6 +35,7 @@ pub struct App {
     queue: Vec<QueueItem>,
     finished_queue: Vec<QueueItem>,
     input_mode: InputMode,
+    error_msgs: Vec<String>,
 }
 
 impl Default for App {
@@ -52,6 +53,7 @@ impl App {
             queue: Vec::new(),
             finished_queue: Vec::new(),
             input_mode: InputMode::default(),
+            error_msgs: Vec::new(),
         }
     }
 
@@ -132,7 +134,7 @@ impl App {
 
                     self.finished_queue.push(elem)
                 }
-                DownloadProgress::Error(id) => {
+                DownloadProgress::DownloadError(id) => {
                     let pos = self
                         .queue
                         .iter()
@@ -143,6 +145,12 @@ impl App {
 
                     self.finished_queue.push(elem)
                 }
+                DownloadProgress::SongNotFoundError(id) => self
+                    .error_msgs
+                    .push(format!("Song with id {} was not found.", id)),
+                DownloadProgress::AlbumNotFoundError(id) => self
+                    .error_msgs
+                    .push(format!("Album with id {} was not found.", id)),
             }
         }
 
@@ -188,10 +196,32 @@ impl App {
             input_chunks[1].y + 1,
         );
 
+        let chunks1 = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Percentage(70), Constraint::Percentage(30)])
+            .split(chunks[0]);
+
+        f.render_widget(
+            List::new(
+                self.error_msgs
+                    .iter()
+                    .rev()
+                    .map(|x| {
+                        ListItem::new(Line::from(vec![
+                            Span::styled("[Error] ", Style::default().fg(Color::Red).bold()),
+                            Span::raw(x),
+                        ]))
+                    })
+                    .collect::<Vec<_>>(),
+            )
+            .block(Block::default().title("Errors").borders(Borders::all())),
+            chunks1[1],
+        );
+
         let chunks2 = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(chunks[0]);
+            .split(chunks1[0]);
 
         // Queue list
         f.render_widget(
