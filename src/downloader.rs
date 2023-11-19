@@ -45,12 +45,12 @@ impl Display for DownloadStatus {
 pub struct Downloader {
     pub progress_rx: Receiver<DownloadProgress>,
     progress_tx: Sender<DownloadProgress>,
-    download_tx: Sender<Id>,
+    download_tx: Sender<Track>,
 }
 
 impl Downloader {
     pub fn new() -> Self {
-        let (download_tx, download_rx) = unbounded();
+        let (download_tx, download_rx) = unbounded::<Track>();
         let (progress_tx, progress_rx) = unbounded();
 
         for _ in 0..DOWNLOAD_THREADS {
@@ -59,10 +59,12 @@ impl Downloader {
 
             tokio::spawn(async move {
                 let downloader = DeezerDownloader::new().await.unwrap();
-                while let Ok(id) = _download_rx.recv() {
+                while let Ok(track) = _download_rx.recv() {
+                    let id = track.id;
+
                     _progress_tx.send(DownloadProgress::Start(id)).unwrap();
 
-                    let result = download_song(id, &downloader).await;
+                    let result = download_song(track, &downloader).await;
                     let progress = match result {
                         Ok(_) => DownloadProgress::Finish(id),
                         Err(_) => DownloadProgress::DownloadError(id),
@@ -94,9 +96,9 @@ impl Downloader {
                     match maybe_track {
                         Ok(Some(track)) if track.readable => {
                             _progress_tx
-                                .send(DownloadProgress::Queue(track))
+                                .send(DownloadProgress::Queue(track.clone()))
                                 .expect("Channel should be open.");
-                            _download_tx.send(id).expect("Channel should be open.");
+                            _download_tx.send(track).expect("Channel should be open.");
                         }
                         _ => {
                             _progress_tx
@@ -120,12 +122,10 @@ impl Downloader {
                                 .get_full()
                                 .await
                                 .expect("Track should always be available.");
-                            let id = track.id;
-
                             _progress_tx
-                                .send(DownloadProgress::Queue(track))
+                                .send(DownloadProgress::Queue(track.clone()))
                                 .expect("Channel should be open.");
-                            _download_tx.send(id).expect("Channel should be open.");
+                            _download_tx.send(track).expect("Channel should be open.");
                         }
                     } else {
                         _progress_tx
@@ -138,8 +138,9 @@ impl Downloader {
     }
 }
 
-async fn download_song(id: Id, downloader: &DeezerDownloader) -> Result<()> {
-    let song = match Song::download(id, downloader).await {
+async fn download_song(track: Track, downloader: &DeezerDownloader) -> Result<()> {
+    let id = track.id;
+    let song = match Song::download_from_metadata(track, downloader).await {
         Ok(it) => it,
         Err(_) => return Err(eyre!(format!("Song with id {} not found.", id))),
     };
