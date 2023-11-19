@@ -5,6 +5,7 @@ use crossbeam_channel::{unbounded, Receiver, Sender};
 use deezer::{models::Track, DeezerClient};
 use deezer_downloader::{Downloader as DeezerDownloader, Song};
 use directories::UserDirs;
+use futures::future::join_all;
 
 static DOWNLOAD_THREADS: Id = 4;
 
@@ -64,7 +65,7 @@ impl Downloader {
 
                     _progress_tx.send(DownloadProgress::Start(id)).unwrap();
 
-                    let result = download_song(track, &downloader).await;
+                    let result = download_song_from_track(track, &downloader).await;
                     let progress = match result {
                         Ok(_) => DownloadProgress::Finish(id),
                         Err(_) => DownloadProgress::DownloadError(id),
@@ -88,74 +89,100 @@ impl Downloader {
                 let _progress_tx = self.progress_tx.clone();
                 let _download_tx = self.download_tx.clone();
 
-                tokio::spawn(async move {
-                    let client = DeezerClient::new();
-                    let maybe_track = client.track(id).await;
-
-                    // Check if the song was found AND is readable
-                    match maybe_track {
-                        Ok(Some(track)) if track.readable => {
-                            _progress_tx
-                                .send(DownloadProgress::Queue(track.clone()))
-                                .expect("Channel should be open.");
-                            _download_tx.send(track).expect("Channel should be open.");
-                        }
-                        _ => {
-                            _progress_tx
-                                .send(DownloadProgress::SongNotFoundError(id))
-                                .expect("Channel should be open.");
-                        }
-                    }
-                });
+                tokio::spawn(download_song(id, _progress_tx, _download_tx));
             }
             DownloadRequest::Album(id) => {
                 let _progress_tx = self.progress_tx.clone();
                 let _download_tx = self.download_tx.clone();
 
-                tokio::spawn(async move {
-                    let client = DeezerClient::new();
-                    let maybe_album = client.album(id).await;
-
-                    if let Ok(Some(album)) = maybe_album {
-                        for album_track in album.tracks {
-                            let track = album_track
-                                .get_full()
-                                .await
-                                .expect("Track should always be available.");
-                            _progress_tx
-                                .send(DownloadProgress::Queue(track.clone()))
-                                .expect("Channel should be open.");
-                            _download_tx.send(track).expect("Channel should be open.");
-                        }
-                    } else {
-                        _progress_tx
-                            .send(DownloadProgress::AlbumNotFoundError(id))
-                            .expect("Channel should be open.");
-                    }
-                });
+                tokio::spawn(download_album(id, _progress_tx, _download_tx));
             }
         };
     }
 }
 
-async fn download_song(track: Track, downloader: &DeezerDownloader) -> Result<()> {
+async fn download_song(id: u64, progress_tx: Sender<DownloadProgress>, download_tx: Sender<Track>) {
+    let client = DeezerClient::new();
+    let maybe_track = client.track(id).await;
+
+    // Check if the song was found AND is readable
+    match maybe_track {
+        Ok(Some(track)) if track.readable => {
+            progress_tx
+                .send(DownloadProgress::Queue(track.clone()))
+                .expect("Channel should be open.");
+            download_tx.send(track).expect("Channel should be open.");
+        }
+        _ => {
+            progress_tx
+                .send(DownloadProgress::SongNotFoundError(id))
+                .expect("Channel should be open.");
+        }
+    }
+}
+
+async fn download_album(
+    id: u64,
+    progress_tx: Sender<DownloadProgress>,
+    download_tx: Sender<Track>,
+) {
+    let client = DeezerClient::new();
+    let maybe_album = client.album(id).await;
+
+    if let Ok(Some(album)) = maybe_album {
+        let mut futures = Vec::new();
+
+        for album_track in album.tracks.iter() {
+            futures.push(async {
+                let track = album_track
+                    .get_full()
+                    .await
+                    .expect("Track should always be available.");
+
+                progress_tx
+                    .send(DownloadProgress::Queue(track.clone()))
+                    .expect("Channel should be open.");
+                download_tx.send(track).expect("Channel should be open.");
+            });
+        }
+
+        join_all(futures).await;
+    } else {
+        progress_tx
+            .send(DownloadProgress::AlbumNotFoundError(id))
+            .expect("Channel should be open.");
+    }
+}
+
+async fn download_song_from_track(track: Track, downloader: &DeezerDownloader) -> Result<()> {
     let id = track.id;
     let song = match Song::download_from_metadata(track, downloader).await {
         Ok(it) => it,
         Err(_) => return Err(eyre!(format!("Song with id {} not found.", id))),
     };
 
-    if let Some(user_dirs) = UserDirs::new() {
-        if let Some(download_dirs) = user_dirs.download_dir() {
-            let song_title = format!(
-                "./{} - {}.mp3",
-                song.tag.artist().unwrap_or_default(),
-                song.tag.title().unwrap_or_default()
-            );
+    write_song_to_file(song)?;
 
-            song.write_to_file(download_dirs.join(song_title))
-                .expect("An error occured while writing the file.");
-        }
+    Ok(())
+}
+
+/// Write a [Song] to the download directory.
+///
+/// TODO: Allow the target directory to be given.
+fn write_song_to_file(song: Song) -> Result<()> {
+    let Some(user_dirs) = UserDirs::new() else {
+        return Ok(());
+    };
+
+    if let Some(download_dirs) = user_dirs.download_dir() {
+        let song_title = format!(
+            "./{} - {}.mp3",
+            song.tag.artist().unwrap_or_default(),
+            song.tag.title().unwrap_or_default()
+        );
+
+        song.write_to_file(download_dirs.join(song_title))
+            .map_err(|_| eyre!("An error occured while writing the file."))?;
     }
 
     Ok(())
