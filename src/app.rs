@@ -8,6 +8,8 @@ use ratatui::{prelude::*, widgets::*};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
 
+type Chunks = std::rc::Rc<[Rect]>;
+
 #[derive(Debug, Default)]
 enum InputMode {
     #[default]
@@ -164,43 +166,38 @@ impl App {
     fn ui(&mut self, f: &mut Frame) -> Result<()> {
         let area = f.size();
 
-        let chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .margin(1)
-            .constraints(vec![Constraint::Min(1), Constraint::Length(3)])
+        let main_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Percentage(70), Constraint::Percentage(30)])
             .split(area);
+
+        let log_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Min(1), Constraint::Length(3)])
+            .split(main_chunks[0]);
 
         let input_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![Constraint::Length(7), Constraint::Min(1)])
-            .split(chunks[1]);
+            .split(log_chunks[1]);
 
-        // Search bar
+        self.render_logs(f, log_chunks[0]);
+
         f.render_widget(
             Paragraph::new(self.input_mode.to_string())
                 .alignment(Alignment::Center)
                 .block(Block::default().padding(Padding::uniform(1))),
             input_chunks[0],
         );
+        self.render_input(f, input_chunks[1]);
 
-        f.render_widget(
-            Paragraph::new(self.input.value()).block(
-                Block::default()
-                    .borders(Borders::all())
-                    .padding(Padding::horizontal(1)),
-            ),
-            input_chunks[1],
-        );
-        f.set_cursor(
-            self.input.visual_cursor() as u16 + 2 + input_chunks[1].x,
-            input_chunks[1].y + 1,
-        );
+        // Queue list
+        self.render_queue_list(f, main_chunks[1]);
 
-        let chunks1 = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints(vec![Constraint::Percentage(70), Constraint::Percentage(30)])
-            .split(chunks[0]);
+        Ok(())
+    }
 
+    fn render_logs(&mut self, f: &mut ratatui::prelude::Frame<'_>, rect: Rect) {
         f.render_widget(
             List::new(
                 self.error_msgs
@@ -214,16 +211,24 @@ impl App {
                     })
                     .collect::<Vec<_>>(),
             )
-            .block(Block::default().title("Errors").borders(Borders::all())),
-            chunks1[1],
+            .block(Block::default().title("Logs").borders(Borders::all())),
+            rect,
         );
+    }
 
-        let chunks2 = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Percentage(50), Constraint::Percentage(50)])
-            .split(chunks1[0]);
+    fn render_input(&mut self, f: &mut Frame, rect: Rect) {
+        f.render_widget(
+            Paragraph::new(self.input.value()).block(
+                Block::default()
+                    .borders(Borders::all())
+                    .padding(Padding::horizontal(1)),
+            ),
+            rect,
+        );
+        f.set_cursor(self.input.visual_cursor() as u16 + 2 + rect.x, rect.y + 1);
+    }
 
-        // Queue list
+    fn render_queue_list(&mut self, f: &mut Frame, rect: Rect) {
         f.render_widget(
             List::new(
                 self.queue
@@ -255,44 +260,32 @@ impl App {
                     .borders(Borders::all())
                     .title("Download queue"),
             ),
-            chunks2[0],
+            rect,
         );
-
-        // Finished list
-        f.render_widget(
-            List::new(
-                self.finished_queue
-                    .iter()
-                    .map(|x| {
-                        ListItem::new(Line::from(vec![
-                            Span::styled(
-                                format!("[{}]", x.status),
-                                Style::default()
-                                    .fg(match x.status {
-                                        DownloadStatus::Finished => Color::LightBlue,
-                                        DownloadStatus::Downloading => Color::LightGreen,
-                                        DownloadStatus::Error => Color::Red,
-                                        DownloadStatus::Inactive => Color::Gray,
-                                    })
-                                    .bold(),
-                            ),
-                            Span::styled(
-                                format!(" {} ", x.song.artist.name,),
-                                Style::default().bold(),
-                            ),
-                            Span::raw(format!("- {}", x.song.title.clone())),
-                        ]))
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .block(
-                Block::default()
-                    .borders(Borders::all())
-                    .title("Finished downloading"),
-            ),
-            chunks2[1],
-        );
-
-        Ok(())
     }
+}
+
+/// # Usage
+///
+/// ```rust
+/// let rect = centered_rect(f.size(), 50, 50);
+/// ```
+fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }
