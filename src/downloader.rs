@@ -180,10 +180,39 @@ fn write_song_to_file(song: Song) -> Result<()> {
             song.tag.artist().unwrap_or_default(),
             song.tag.title().unwrap_or_default()
         );
+        let song_title = replace_illegal_characters(&song_title);
 
         song.write_to_file(download_dirs.join(song_title))
             .map_err(|_| eyre!("An error occured while writing the file."))?;
     }
 
     Ok(())
+}
+
+/// Replaces illegal characters for a Windows file.
+fn replace_illegal_characters(str: &str) -> String {
+    static ILLEGAL_CHARACTERS: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+
+    str.chars()
+        .filter(|char| !ILLEGAL_CHARACTERS.contains(char))
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replaces_invalid_chars() {
+        let file_name = "AC/DC - Thunderstruck.mp3";
+
+        assert_eq!(
+            "ACDC - Thunderstruck.mp3",
+            replace_illegal_characters(file_name)
+        );
+
+        let file_name = "<>:\"/\\|?* - Test.mp3";
+
+        assert_eq!(" - Test.mp3", replace_illegal_characters(file_name));
+    }
 }
