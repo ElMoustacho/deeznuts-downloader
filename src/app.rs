@@ -1,14 +1,13 @@
 use std::fmt::Display;
 
 use crate::downloader::{DownloadProgress, DownloadRequest, DownloadStatus, Downloader};
+use crate::log::{get_log_msg, Log};
 use crate::{tui::Tui, Action, Event, Frame};
 use color_eyre::eyre::{eyre, Result};
 use deezer::models::Track;
 use ratatui::{prelude::*, widgets::*};
 use tui_input::backend::crossterm::EventHandler;
 use tui_input::Input;
-
-type Chunks = std::rc::Rc<[Rect]>;
 
 #[derive(Debug, Default)]
 enum InputMode {
@@ -35,9 +34,8 @@ pub struct App {
     input: Input,
     downloader: Downloader,
     queue: Vec<QueueItem>,
-    finished_queue: Vec<QueueItem>,
     input_mode: InputMode,
-    error_msgs: Vec<String>,
+    logs: Vec<Log>,
 }
 
 impl Default for App {
@@ -53,9 +51,8 @@ impl App {
             input: Input::default(),
             downloader: Downloader::new(),
             queue: Vec::new(),
-            finished_queue: Vec::new(),
             input_mode: InputMode::default(),
-            error_msgs: Vec::new(),
+            logs: Vec::new(),
         }
     }
 
@@ -112,6 +109,10 @@ impl App {
         }
 
         while let Ok(progress) = self.downloader.progress_rx.try_recv() {
+            if let Some(str) = get_log_msg(&progress) {
+                self.logs.push(str);
+            }
+
             match progress {
                 DownloadProgress::Queue(track) => self.queue.push(QueueItem {
                     song: track,
@@ -133,8 +134,6 @@ impl App {
                         .expect("Track should be in queue.");
                     let mut elem = self.queue.remove(pos);
                     elem.status = DownloadStatus::Finished;
-
-                    self.finished_queue.push(elem)
                 }
                 DownloadProgress::DownloadError(id) => {
                     let pos = self
@@ -144,15 +143,9 @@ impl App {
                         .expect("Track should be in queue.");
                     let mut elem = self.queue.remove(pos);
                     elem.status = DownloadStatus::Error;
-
-                    self.finished_queue.push(elem)
                 }
-                DownloadProgress::SongNotFoundError(id) => self
-                    .error_msgs
-                    .push(format!("Song with id {} was not found.", id)),
-                DownloadProgress::AlbumNotFoundError(id) => self
-                    .error_msgs
-                    .push(format!("Album with id {} was not found.", id)),
+                DownloadProgress::SongNotFoundError(_) => {}
+                DownloadProgress::AlbumNotFoundError(_) => {}
             }
         }
 
@@ -199,19 +192,8 @@ impl App {
 
     fn render_logs(&mut self, f: &mut ratatui::prelude::Frame<'_>, rect: Rect) {
         f.render_widget(
-            List::new(
-                self.error_msgs
-                    .iter()
-                    .rev()
-                    .map(|x| {
-                        ListItem::new(Line::from(vec![
-                            Span::styled("[Error] ", Style::default().fg(Color::Red).bold()),
-                            Span::raw(x),
-                        ]))
-                    })
-                    .collect::<Vec<_>>(),
-            )
-            .block(Block::default().title("Logs").borders(Borders::all())),
+            List::new(self.logs.iter().map(|x| format_log(x)).collect::<Vec<_>>())
+                .block(Block::default().title("Logs").borders(Borders::all())),
             rect,
         );
     }
@@ -237,17 +219,10 @@ impl App {
                         ListItem::new(Line::from(vec![
                             Span::styled(
                                 format!("[{}]", x.status),
-                                Style::default()
-                                    .fg(match x.status {
-                                        DownloadStatus::Finished => Color::LightBlue,
-                                        DownloadStatus::Downloading => Color::LightGreen,
-                                        DownloadStatus::Error => Color::Red,
-                                        DownloadStatus::Inactive => Color::Gray,
-                                    })
-                                    .bold(),
+                                Style::default().fg(get_status_color(&x.status)).bold(),
                             ),
                             Span::styled(
-                                format!(" {} ", x.song.artist.name,),
+                                format!(" {} ", x.song.artist.name),
                                 Style::default().bold(),
                             ),
                             Span::raw(format!("- {}", x.song.title.clone())),
@@ -265,27 +240,26 @@ impl App {
     }
 }
 
-/// # Usage
-///
-/// ```rust
-/// let rect = centered_rect(f.size(), 50, 50);
-/// ```
-fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
-    let popup_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Percentage((100 - percent_y) / 2),
-            Constraint::Percentage(percent_y),
-            Constraint::Percentage((100 - percent_y) / 2),
-        ])
-        .split(r);
+fn format_log(log: &Log) -> ListItem {
+    let line = match log {
+        Log::Ok(msg) => Line::from(vec![
+            Span::styled("[Success] ", Style::default().fg(Color::LightGreen).bold()),
+            Span::raw(msg),
+        ]),
+        Log::Err(err) => Line::from(vec![
+            Span::styled("[Error] ", Style::default().fg(Color::Red).bold()),
+            Span::raw(err),
+        ]),
+    };
 
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage((100 - percent_x) / 2),
-            Constraint::Percentage(percent_x),
-            Constraint::Percentage((100 - percent_x) / 2),
-        ])
-        .split(popup_layout[1])[1]
+    ListItem::new(line)
+}
+
+fn get_status_color(download_status: &DownloadStatus) -> Color {
+    match download_status {
+        DownloadStatus::Finished => Color::LightGreen,
+        DownloadStatus::Downloading => Color::LightBlue,
+        DownloadStatus::Error => Color::Red,
+        DownloadStatus::Inactive => Color::Gray,
+    }
 }

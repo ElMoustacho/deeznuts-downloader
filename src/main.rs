@@ -1,5 +1,6 @@
 mod app;
 mod downloader;
+mod log;
 mod tui;
 
 use app::App;
