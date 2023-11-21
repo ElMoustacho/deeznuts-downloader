@@ -7,7 +7,7 @@ use deezer_downloader::{Downloader as DeezerDownloader, Song};
 use directories::UserDirs;
 use futures::future::join_all;
 
-static DOWNLOAD_THREADS: Id = 4;
+static DOWNLOAD_THREADS: u64 = 4;
 
 type Id = u64;
 
