@@ -87,7 +87,7 @@ impl App {
 
     fn update(&mut self, action: Action) -> Result<()> {
         match action {
-            Action::Tick => {}
+            Action::Tick => self.update_progress(),
             Action::Quit => self.quit(),
             Action::ToggleInputMode => {
                 self.input_mode = match self.input_mode {
@@ -108,6 +108,10 @@ impl App {
             }
         }
 
+        Ok(())
+    }
+
+    fn update_progress(&mut self) {
         while let Ok(progress) = self.downloader.progress_rx.try_recv() {
             if let Some(str) = get_log_msg(&progress) {
                 self.logs.push(str);
@@ -132,8 +136,7 @@ impl App {
                         .iter()
                         .position(|x| x.song.id == id)
                         .expect("Track should be in queue.");
-                    let mut elem = self.queue.remove(pos);
-                    elem.status = DownloadStatus::Finished;
+                    self.queue.remove(pos);
                 }
                 DownloadProgress::DownloadError(id) => {
                     let pos = self
@@ -141,15 +144,12 @@ impl App {
                         .iter()
                         .position(|x| x.song.id == id)
                         .expect("Track should be in queue.");
-                    let mut elem = self.queue.remove(pos);
-                    elem.status = DownloadStatus::Error;
+                    self.queue.remove(pos);
                 }
                 DownloadProgress::SongNotFoundError(_) => {}
                 DownloadProgress::AlbumNotFoundError(_) => {}
             }
         }
-
-        Ok(())
     }
 
     fn quit(&mut self) {
