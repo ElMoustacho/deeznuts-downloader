@@ -176,7 +176,7 @@ fn write_song_to_file(song: Song) -> Result<()> {
 
     if let Some(download_dirs) = user_dirs.download_dir() {
         let song_title = format!(
-            "./{} - {}.mp3",
+            "{} - {}.mp3",
             song.tag.artist().unwrap_or_default(),
             song.tag.title().unwrap_or_default()
         );
