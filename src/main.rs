@@ -21,6 +21,8 @@ enum Action {
     Quit,
     ToggleInputMode,
     Download,
+    ScrollLogsUp,
+    ScrollLogsDown,
 }
 
 #[tokio::main]

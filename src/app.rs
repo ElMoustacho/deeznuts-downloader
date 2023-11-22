@@ -36,6 +36,7 @@ pub struct App {
     queue: Vec<QueueItem>,
     input_mode: InputMode,
     logs: Vec<LogEntry>,
+    logs_offset: u16,
 }
 
 impl Default for App {
@@ -53,6 +54,7 @@ impl App {
             queue: Vec::new(),
             input_mode: InputMode::default(),
             logs: Vec::new(),
+            logs_offset: 0,
         }
     }
 
@@ -75,6 +77,8 @@ impl App {
                 crossterm::event::KeyCode::Esc => Action::Quit,
                 crossterm::event::KeyCode::Enter => Action::Download,
                 crossterm::event::KeyCode::Tab => Action::ToggleInputMode,
+                crossterm::event::KeyCode::PageUp => Action::ScrollLogsUp,
+                crossterm::event::KeyCode::PageDown => Action::ScrollLogsDown,
                 _ => {
                     self.input.handle_event(&crossterm::event::Event::Key(key));
                     Action::Tick
@@ -106,6 +110,8 @@ impl App {
                     self.downloader.request_download(request(id));
                 }
             }
+            Action::ScrollLogsUp => self.logs_offset = self.logs_offset.saturating_sub(1),
+            Action::ScrollLogsDown => self.logs_offset = self.logs_offset.saturating_add(1),
         }
 
         Ok(())
@@ -200,9 +206,10 @@ impl App {
         let key_style = Style::default();
         let command_style = Style::default().on_dark_gray();
 
-        static COMMANDS: [(&str, &str); 3] = [
+        static COMMANDS: [(&str, &str); 4] = [
             ("Esc", "Quit"),
-            ("Tab", "Toggle Song/Album"),
+            ("PgUp/PgDown", "Scroll logs"),
+            ("Tab", "Toggle Song ↔ Album"),
             ("Enter", "Start Download"),
         ];
 
@@ -220,9 +227,22 @@ impl App {
 
     fn render_logs(&mut self, f: &mut Frame, rect: Rect) {
         f.render_widget(
-            List::new(self.logs.iter().map(|x| format_log(x)).collect::<Vec<_>>())
+            Paragraph::new(self.logs.iter().map(|x| format_log(x)).collect::<Vec<_>>())
+                .scroll((self.logs_offset, 0))
                 .block(Block::default().title("Logs").borders(Borders::all())),
             rect,
+        );
+
+        let mut scrollbar_state = ScrollbarState::default()
+            .content_length(self.logs.len())
+            .position(self.logs_offset as usize);
+        f.render_stateful_widget(
+            Scrollbar::default().begin_symbol(None).end_symbol(None),
+            rect.inner(&Margin {
+                horizontal: 0,
+                vertical: 1,
+            }),
+            &mut scrollbar_state,
         );
     }
 
@@ -268,8 +288,8 @@ impl App {
     }
 }
 
-fn format_log(log: &LogEntry) -> ListItem {
-    let line = match log {
+fn format_log(log: &LogEntry) -> Line {
+    match log {
         LogEntry::Success(msg) => Line::from(vec![
             Span::styled("[Success] ", Style::default().fg(Color::LightGreen).bold()),
             Span::raw(msg),
@@ -278,9 +298,7 @@ fn format_log(log: &LogEntry) -> ListItem {
             Span::styled("[Error] ", Style::default().fg(Color::Red).bold()),
             Span::raw(msg),
         ]),
-    };
-
-    ListItem::new(line)
+    }
 }
 
 fn get_status_color(download_status: &DownloadStatus) -> Color {
