@@ -129,7 +129,6 @@ impl App {
                         }
                     }
                 }
-                DownloadProgress::Progress(_, _) => {}
                 DownloadProgress::Finish(id) => {
                     let pos = self
                         .queue
@@ -257,9 +256,7 @@ fn format_log(log: &LogEntry) -> ListItem {
 
 fn get_status_color(download_status: &DownloadStatus) -> Color {
     match download_status {
-        DownloadStatus::Finished => Color::LightGreen,
         DownloadStatus::Downloading => Color::LightBlue,
-        DownloadStatus::Error => Color::Red,
         DownloadStatus::Inactive => Color::Gray,
     }
 }

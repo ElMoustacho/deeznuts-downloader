@@ -21,7 +21,6 @@ pub enum DownloadRequest {
 pub enum DownloadProgress {
     Queue(Track),
     Start(Id),
-    Progress(Id, f32),
     Finish(Id),
     DownloadError(Id),
     SongNotFoundError(Id),
@@ -30,9 +29,7 @@ pub enum DownloadProgress {
 
 #[derive(Debug)]
 pub enum DownloadStatus {
-    Finished,
     Downloading,
-    Error,
     Inactive,
 }
 

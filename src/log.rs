@@ -8,9 +8,7 @@ pub enum LogEntry {
 
 pub fn get_log_from_progress(download_progress: &DownloadProgress) -> Option<LogEntry> {
     match download_progress {
-        DownloadProgress::Queue(_)
-        | DownloadProgress::Start(_)
-        | DownloadProgress::Progress(_, _) => None,
+        DownloadProgress::Queue(_) | DownloadProgress::Start(_) => None,
         DownloadProgress::Finish(id) => Some(LogEntry::Success(format!(
             "Song with id {} downloaded.",
             id
