@@ -122,26 +122,26 @@ impl App {
                     song: track,
                     status: DownloadStatus::Inactive,
                 }),
-                DownloadProgress::Start(id) => {
+                DownloadProgress::Start(track) => {
                     for item in self.queue.iter_mut() {
-                        if item.song.id == id {
+                        if item.song.id == track.id {
                             item.status = DownloadStatus::Downloading
                         }
                     }
                 }
-                DownloadProgress::Finish(id) => {
+                DownloadProgress::Finish(track) => {
                     let pos = self
                         .queue
                         .iter()
-                        .position(|x| x.song.id == id)
+                        .position(|x| x.song.id == track.id)
                         .expect("Track should be in queue.");
                     self.queue.remove(pos);
                 }
-                DownloadProgress::DownloadError(id) => {
+                DownloadProgress::DownloadError(track) => {
                     let pos = self
                         .queue
                         .iter()
-                        .position(|x| x.song.id == id)
+                        .position(|x| x.song.id == track.id)
                         .expect("Track should be in queue.");
                     self.queue.remove(pos);
                 }

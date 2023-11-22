@@ -20,9 +20,9 @@ pub enum DownloadRequest {
 #[derive(Debug)]
 pub enum DownloadProgress {
     Queue(Track),
-    Start(Id),
-    Finish(Id),
-    DownloadError(Id),
+    Start(Track),
+    Finish(Track),
+    DownloadError(Track),
     SongNotFoundError(Id),
     AlbumNotFoundError(Id),
 }
@@ -58,14 +58,14 @@ impl Downloader {
             tokio::spawn(async move {
                 let downloader = DeezerDownloader::new().await.unwrap();
                 while let Ok(track) = _download_rx.recv() {
-                    let id = track.id;
+                    _progress_tx
+                        .send(DownloadProgress::Start(track.clone()))
+                        .unwrap();
 
-                    _progress_tx.send(DownloadProgress::Start(id)).unwrap();
-
-                    let result = download_song_from_track(track, &downloader).await;
+                    let result = download_song_from_track(track.clone(), &downloader).await;
                     let progress = match result {
-                        Ok(_) => DownloadProgress::Finish(id),
-                        Err(_) => DownloadProgress::DownloadError(id),
+                        Ok(_) => DownloadProgress::Finish(track),
+                        Err(_) => DownloadProgress::DownloadError(track),
                     };
 
                     _progress_tx.send(progress).unwrap();
