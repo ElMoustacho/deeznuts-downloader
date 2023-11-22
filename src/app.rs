@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::downloader::{DownloadProgress, DownloadRequest, DownloadStatus, Downloader};
-use crate::log::{get_log_msg, Log};
+use crate::log::{get_log_from_progress, LogEntry};
 use crate::{tui::Tui, Action, Event, Frame};
 use color_eyre::eyre::{eyre, Result};
 use deezer::models::Track;
@@ -35,7 +35,7 @@ pub struct App {
     downloader: Downloader,
     queue: Vec<QueueItem>,
     input_mode: InputMode,
-    logs: Vec<Log>,
+    logs: Vec<LogEntry>,
 }
 
 impl Default for App {
@@ -113,7 +113,7 @@ impl App {
 
     fn update_progress(&mut self) {
         while let Ok(progress) = self.downloader.progress_rx.try_recv() {
-            if let Some(str) = get_log_msg(&progress) {
+            if let Some(str) = get_log_from_progress(&progress) {
                 self.logs.push(str);
             }
 
@@ -240,15 +240,15 @@ impl App {
     }
 }
 
-fn format_log(log: &Log) -> ListItem {
+fn format_log(log: &LogEntry) -> ListItem {
     let line = match log {
-        Log::Ok(msg) => Line::from(vec![
+        LogEntry::Success(msg) => Line::from(vec![
             Span::styled("[Success] ", Style::default().fg(Color::LightGreen).bold()),
             Span::raw(msg),
         ]),
-        Log::Err(err) => Line::from(vec![
+        LogEntry::Error(msg) => Line::from(vec![
             Span::styled("[Error] ", Style::default().fg(Color::Red).bold()),
-            Span::raw(err),
+            Span::raw(msg),
         ]),
     };
 

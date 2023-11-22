@@ -1,26 +1,31 @@
 use crate::downloader::DownloadProgress;
 
 #[derive(Debug)]
-pub enum Log {
-    Err(String),
-    Ok(String),
+pub enum LogEntry {
+    Error(String),
+    Success(String),
 }
 
-pub fn get_log_msg(download_progress: &DownloadProgress) -> Option<Log> {
+pub fn get_log_from_progress(download_progress: &DownloadProgress) -> Option<LogEntry> {
     match download_progress {
         DownloadProgress::Queue(_)
         | DownloadProgress::Start(_)
         | DownloadProgress::Progress(_, _) => None,
-        DownloadProgress::Finish(id) => Some(Log::Ok(format!("Song with id {} downloaded.", id))),
-        DownloadProgress::DownloadError(id) => Some(Log::Err(format!(
+        DownloadProgress::Finish(id) => Some(LogEntry::Success(format!(
+            "Song with id {} downloaded.",
+            id
+        ))),
+        DownloadProgress::DownloadError(id) => Some(LogEntry::Error(format!(
             "Error while downloading song with id {}.",
             id
         ))),
-        DownloadProgress::SongNotFoundError(id) => {
-            Some(Log::Err(format!("Song with id {} was not found.", id)))
-        }
-        DownloadProgress::AlbumNotFoundError(id) => {
-            Some(Log::Err(format!("Album with id {} was not found.", id)))
-        }
+        DownloadProgress::SongNotFoundError(id) => Some(LogEntry::Error(format!(
+            "Song with id {} was not found.",
+            id
+        ))),
+        DownloadProgress::AlbumNotFoundError(id) => Some(LogEntry::Error(format!(
+            "Album with id {} was not found.",
+            id
+        ))),
     }
 }
