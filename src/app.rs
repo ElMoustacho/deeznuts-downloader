@@ -158,10 +158,15 @@ impl App {
     fn ui(&mut self, f: &mut Frame) -> Result<()> {
         let area = f.size();
 
+        let info_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints(vec![Constraint::Min(1), Constraint::Length(1)])
+            .split(area);
+
         let main_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints(vec![Constraint::Percentage(70), Constraint::Percentage(30)])
-            .split(area);
+            .split(info_chunks[0]);
 
         let log_chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -172,6 +177,8 @@ impl App {
             .direction(Direction::Horizontal)
             .constraints(vec![Constraint::Length(7), Constraint::Min(1)])
             .split(log_chunks[1]);
+
+        self.render_info(f, info_chunks[1]);
 
         self.render_logs(f, log_chunks[0]);
 
@@ -189,7 +196,29 @@ impl App {
         Ok(())
     }
 
-    fn render_logs(&mut self, f: &mut ratatui::prelude::Frame<'_>, rect: Rect) {
+    fn render_info(&self, f: &mut Frame, rect: Rect) {
+        let key_style = Style::default();
+        let command_style = Style::default().on_dark_gray();
+
+        static COMMANDS: [(&str, &str); 3] = [
+            ("Esc", "Quit"),
+            ("Tab", "Toggle Song/Album"),
+            ("Enter", "Start Download"),
+        ];
+
+        let mut commands_spans = Vec::new();
+        for (a, b) in COMMANDS {
+            commands_spans.append(&mut vec![
+                Span::styled(format!(" {} ", a), key_style),
+                Span::styled(format!(" {} ", b), command_style),
+            ]);
+        }
+        let line = Line::from(commands_spans).alignment(Alignment::Center);
+
+        f.render_widget(Paragraph::new(line), rect);
+    }
+
+    fn render_logs(&mut self, f: &mut Frame, rect: Rect) {
         f.render_widget(
             List::new(self.logs.iter().map(|x| format_log(x)).collect::<Vec<_>>())
                 .block(Block::default().title("Logs").borders(Borders::all())),
