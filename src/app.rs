@@ -227,7 +227,7 @@ impl App {
 
     fn render_logs(&mut self, f: &mut Frame, rect: Rect) {
         let logs_block = Block::default().title("Logs").borders(Borders::all());
-        let height = logs_block.inner(rect).height;
+        let height = logs_block.inner(rect).height as usize;
 
         f.render_widget(
             Paragraph::new(self.logs.iter().map(|x| format_log(x)).collect::<Vec<_>>())
@@ -237,9 +237,11 @@ impl App {
         );
 
         // Adjust vertical position so the bar is fully scrolled when the last item is at the bottom of the screen
+        let max_position = self.logs.len().saturating_sub(height) * (height + 1);
+        let offset = (self.logs_offset as usize) * height;
         let mut scrollbar_state = ScrollbarState::default()
-            .content_length(self.logs.len())
-            .position(self.logs_offset.saturating_add(height / 2 + (height % 2)) as usize);
+            .content_length(max_position)
+            .position(offset);
         f.render_stateful_widget(
             Scrollbar::default().begin_symbol(None).end_symbol(None),
             rect.inner(&Margin {
