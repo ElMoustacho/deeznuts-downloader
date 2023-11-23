@@ -231,7 +231,7 @@ impl App {
 
         f.render_widget(
             Paragraph::new(self.logs.iter().map(|x| format_log(x)).collect::<Vec<_>>())
-                .scroll((self.logs_offset, 0.sig))
+                .scroll((self.logs_offset, 0))
                 .block(logs_block),
             rect,
         );
