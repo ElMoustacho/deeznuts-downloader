@@ -1,6 +1,11 @@
 [package]
 name = "deeznuts-downloader"
 version = "0.1.0"
+authors = ["ElMoustacho"]
+description = "A tool to download songs and albums from Deezer."
+repository = "https://github.com/ElMoustacho/deeznuts-downloader"
+keywords = ["deezer", "download"]
+license = "MIT"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
