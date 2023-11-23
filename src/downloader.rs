@@ -3,7 +3,10 @@ use std::fmt::Display;
 use color_eyre::eyre::{eyre, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use deezer::{models::Track, DeezerClient};
-use deezer_downloader::{Downloader as DeezerDownloader, Song};
+use deezer_downloader::{
+    song::{Album, Artist},
+    Downloader as DeezerDownloader, Song, SongMetadata,
+};
 use directories::UserDirs;
 use futures::future::join_all;
 
@@ -153,7 +156,7 @@ async fn download_album(
 
 async fn download_song_from_track(track: Track, downloader: &DeezerDownloader) -> Result<()> {
     let id = track.id;
-    let song = match Song::download_from_metadata(track, downloader).await {
+    let song = match Song::download_from_metadata(metadata_from_track(track), downloader).await {
         Ok(it) => it,
         Err(_) => return Err(eyre!(format!("Song with id {} not found.", id))),
     };
@@ -193,6 +196,25 @@ fn replace_illegal_characters(str: &str) -> String {
     str.chars()
         .filter(|char| !ILLEGAL_CHARACTERS.contains(char))
         .collect()
+}
+
+fn metadata_from_track(track: Track) -> SongMetadata {
+    SongMetadata {
+        id: track.id,
+        title: track.title,
+        artist: Artist {
+            id: track.artist.id,
+            name: track.artist.name,
+        },
+        album: Album {
+            id: track.album.id,
+            title: track.album.title,
+            cover_small: track.album.cover_small,
+            cover_medium: track.album.cover_medium,
+            cover_big: track.album.cover_big,
+        },
+        release_date: Some(track.release_date),
+    }
 }
 
 #[cfg(test)]
