@@ -8,7 +8,7 @@ use deezer_downloader::{
     Downloader as DeezerDownloader, Song, SongMetadata,
 };
 use directories::UserDirs;
-use futures::future::join_all;
+use futures::{future::join_all, TryFutureExt};
 
 static DOWNLOAD_THREADS: u64 = 4;
 
@@ -132,12 +132,16 @@ async fn download_album(
     if let Ok(Some(album)) = maybe_album {
         let mut futures = Vec::new();
 
-        for album_track in album.tracks.iter() {
+        for (index, album_track) in album.tracks.iter().enumerate() {
+            // Add current loop index to Track; we're doing this istead of using
+            // the default value because it starts over when an album has multiple CDs
+            let track = album_track.get_full().and_then(move |mut x| async move {
+                x.track_position_in_album = (index + 1) as u64;
+                Ok(x)
+            });
+
             futures.push(async {
-                let track = album_track
-                    .get_full()
-                    .await
-                    .expect("Track should always be available.");
+                let track = track.await.expect("Track should always be available.");
 
                 progress_tx
                     .send(DownloadProgress::Queue(track.clone()))
@@ -156,10 +160,13 @@ async fn download_album(
 
 async fn download_song_from_track(track: Track, downloader: &DeezerDownloader) -> Result<()> {
     let id = track.id;
-    let song = match Song::download_from_metadata(metadata_from_track(track), downloader).await {
+    let mut song = match Song::download_from_metadata(metadata_from_track(&track), downloader).await
+    {
         Ok(it) => it,
         Err(_) => return Err(eyre!(format!("Song with id {} not found.", id))),
     };
+
+    song.tag.set_track(track.track_position_in_album as u32);
 
     write_song_to_file(song)?;
 
@@ -198,22 +205,22 @@ fn replace_illegal_characters(str: &str) -> String {
         .collect()
 }
 
-fn metadata_from_track(track: Track) -> SongMetadata {
+fn metadata_from_track(track: &Track) -> SongMetadata {
     SongMetadata {
         id: track.id,
-        title: track.title,
+        title: track.title.clone(),
         artist: Artist {
-            id: track.artist.id,
-            name: track.artist.name,
+            id: track.artist.id.clone(),
+            name: track.artist.name.clone(),
         },
         album: Album {
-            id: track.album.id,
-            title: track.album.title,
-            cover_small: track.album.cover_small,
-            cover_medium: track.album.cover_medium,
-            cover_big: track.album.cover_big,
+            id: track.album.id.clone(),
+            title: track.album.title.clone(),
+            cover_small: track.album.cover_small.clone(),
+            cover_medium: track.album.cover_medium.clone(),
+            cover_big: track.album.cover_big.clone(),
         },
-        release_date: Some(track.release_date),
+        release_date: Some(track.release_date.clone()),
     }
 }
 
