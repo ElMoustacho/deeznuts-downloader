@@ -226,7 +226,10 @@ impl App {
     }
 
     fn render_logs(&mut self, f: &mut Frame, rect: Rect) {
-        let logs_block = Block::default().title("Logs").borders(Borders::all());
+        let logs_block = Block::default()
+            .title("Logs")
+            .borders(Borders::all())
+            .border_type(BorderType::Rounded);
         let height = logs_block.inner(rect).height as usize;
 
         f.render_widget(
@@ -257,6 +260,7 @@ impl App {
             Paragraph::new(self.input.value()).block(
                 Block::default()
                     .borders(Borders::all())
+                    .border_type(BorderType::Rounded)
                     .padding(Padding::horizontal(1)),
             ),
             rect,
@@ -287,6 +291,7 @@ impl App {
             .block(
                 Block::default()
                     .borders(Borders::all())
+                    .border_type(BorderType::Rounded)
                     .title("Download queue"),
             ),
             rect,
